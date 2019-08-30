@@ -2,13 +2,9 @@ import sphinx_rtd_theme
 from sphinx.util.docfields import TypedField
 import os
 from gnutools.utils import listfiles, replace_dir
-# from autosphinx import patched_make_field, generate_rst, get_packages
 from autosphinx import AutoSphinx
 from gnutools.utils import parent
 import time
-# os.environ["ASPHINX_LIBROOT"] = "/media/jcadic/IYOProjects/IYO/iyo-python/iyo"
-# os.environ["ASPHINX_NAMELIB"] = "iyo"
-# os.environ["ASPHINX_VERSION"] = "1.0a28"
 CURRENT_DIR = parent(os.path.abspath(__file__))
 ASPHINX_NAMELIB = os.environ["ASPHINX_NAMELIB"]
 ASPHINX_VERSION = os.environ["ASPHINX_VERSION"]
