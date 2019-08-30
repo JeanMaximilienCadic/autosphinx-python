@@ -2,7 +2,7 @@
   <img src="https://raw.githubusercontent.com/JeanMaximilienCadic/autosphinx-python/master/img/autosphinx.png"/>
 </p>
 
-# Cython packaging for python wheels
+# Python package to create documentation easily with Sphinx
 
 ## Requirements
 ```bash
