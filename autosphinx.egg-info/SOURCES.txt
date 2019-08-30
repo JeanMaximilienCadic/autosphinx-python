@@ -1,9 +1,0 @@
-README.md
-setup.py
-autosphinx/__init__.py
-autosphinx/conf.py
-autosphinx.egg-info/PKG-INFO
-autosphinx.egg-info/SOURCES.txt
-autosphinx.egg-info/dependency_links.txt
-autosphinx.egg-info/requires.txt
-autosphinx.egg-info/top_level.txt
