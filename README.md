@@ -27,4 +27,4 @@ sphinx.run()
 
 ## Contributions
 
-Email me at j.cadic@9dw-lab.com for any questions.
+For any question please contact me at j.cadic@protonmail.ch
