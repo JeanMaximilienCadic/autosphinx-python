@@ -17,14 +17,12 @@ from autosphinx import AutoSphinx
 
 sphinx = AutoSphinx(lib_root="/media/jcadic/PythonProjects/project",
                     version="1.0a29",
-                    export_dir="/home/jcadic/PythonDocs/project",
                     logo_img="/home/jcadic/PythonImages/logo_project.png")
 
-sphinx.run()
-
+sphinx.run(export_dir="/home/jcadic/PythonDocs/project")
 ```
 
 
 ## Contributions
 
-For any question please contact me at j.cadic@protonmail.ch
+Email me at j.cadic@9dw-lab.com for any questions.

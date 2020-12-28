@@ -1,64 +1,101 @@
 from docutils import nodes
 from sphinx import addnodes
 import os
-from gnutools.utils import listfiles, parent, name, ext
+from autosphinx.functional import *
+from gnutools.utils import listfiles, parent, name
 import numpy as np
 
+class PyscriptParser(dict):
+    def __init__(self, file):
+        super(PyscriptParser, self).__init__()
+        self._file = file
+        self._lines = [l.split("\n")[0] for l in open(self._file, "r").readlines()]
+        self.update({"classes": {}, "functions": {}})
+        self.run()
+
+    def get_generic_name(self, pattern, ind):
+        return self._lines[ind].split(pattern)[1]
+
+    def get_class_name(self, ind):
+        name = self.get_generic_name(CLASS_DEF, ind)
+        sep = "(" if "(" in name else ":"
+        name = name.split(sep)[0]
+        return name
+
+    def get_method_name(self, ind):
+        return self.get_generic_name(METHOD_DEF, ind).split("(")[0]
+
+    def get_function_name(self, ind):
+        return self.get_generic_name(FUNCTION_DEF, ind).split("(")[0]
+
+    def get_comment(self, start, stop):
+        try:
+            inds_comment = [k+start for k, l in enumerate(self._lines[start:stop]) if '"""' in l]
+            assert len(inds_comment)==2 or len(inds_comment)==0
+            if len(inds_comment)==2:
+                comment = "\n".join(self._lines[inds_comment[0]:inds_comment[1]+1])
+                return comment
+        except AssertionError:
+            pass
+    def run(self):
+        inds_class  = sorted([k for k, l in enumerate(self._lines) if starts_with(l, CLASS_DEF)      ])
+        inds_method = sorted([k for k, l in enumerate(self._lines) if starts_with(l, METHOD_DEF)     ])
+        inds_function  = [k for k, l in enumerate(self._lines) if starts_with(l, FUNCTION_DEF)   ]
+        inds_method += [len(self._lines)]
+        # Update classes and methods
+        if len(inds_class)>0:
+            classes = {}
+            for ind_class in inds_class:
+                dmethods = {}
+                [dmethods.update({
+                    self.get_method_name(ind): {
+                        "block": (ind, inds_method[k + 1]),
+                        "comment": self.get_comment(ind, inds_method[k + 1])
+                    }
+                }) for k, ind in enumerate(inds_method[:-1])]
+                classes.update({self.get_class_name(ind_class): dmethods})
+            self.update({"classes": classes})
+
+        # Update the functions list (BUGGY)
+        if len(inds_function)>0:
+            inds_function += [min(max(inds_function) + 10, len(self._lines))]
+            functions = dict([(self.get_function_name(ind), {
+                "block": (ind, inds_function[k + 1]),
+                "comment": self.get_comment(ind, inds_function[k + 1])
+            })  for k, ind in enumerate(inds_function[:-1])])
+            self.update({"functions": functions})
+
 class AutoSphinx:
-    def __init__(self, lib_root, version, export_dir=None, logo_img=""):
-        os.environ["ASPHINX_LIBROOT"] = lib_root
-        os.environ["ASPHINX_NAMELIB"] = name(lib_root)
-        os.environ["ASPHINX_VERSION"] = version
-        os.environ["ASPHINX_LOGO"] = logo_img
-        os.environ["PATH"]= parent(os.sys.executable) + ":" + os.environ["PATH"]
+    def __init__(self, lib_root, version, logo_img=""):
+        os.environ["ASPHINX_LIBROOT"]   = lib_root
+        os.environ["ASPHINX_NAMELIB"]   = name(lib_root)
+        os.environ["ASPHINX_VERSION"]   = version
+        os.environ["ASPHINX_LOGO"]      = logo_img
+        os.environ["PATH"]              = f"{parent(os.sys.executable)}:{os.environ['PATH']}"
         self._name_lib = name(lib_root)
         self._lib_root = lib_root
+        self._parent_lib_root =  f"{parent(self._lib_root)}/"
         self._version = version
-        self._dir = parent(os.path.abspath(__file__))
-        self._export_dir = export_dir
+        self._current_dir = parent(os.path.abspath(__file__))
+        self._module=None
+        self._name_class = None
+        self._name_function = None
 
-    def run(self):
-        os.system("python {current_dir}/conf.py".format(current_dir=self._dir))
-        os.system("cd {current_dir} && make html".format(current_dir=self._dir))
-        os.system("rm {current_dir}/*.rst".format(current_dir=self._dir))
-        dirs = ["doctrees", "html", "img"]
-        [os.system("mv {current_dir}/{dir} {export_dir}".format(current_dir=self._dir,
-                                                                export_dir=self._export_dir,
-                                                                dir=dir))
-                   for dir in dirs if not os.path.exists("{export_dir}/{dir}".format(export_dir=self._export_dir,
-                                                                                     dir=dir))]
-        [os.system("rm -r {current_dir}/{dir}".format(current_dir=self._dir, dir=dir))
-         for dir in dirs if os.path.exists("{current_dir}/{dir}".format(dir=dir, current_dir=self._dir))]
+    def run(self, export_dir):
+        command = \
+            f"cd {self._current_dir};"\
+            f"export ASPHINX_LIBROOT={os.environ['ASPHINX_LIBROOT']};" \
+            f"export ASPHINX_NAMELIB={os.environ['ASPHINX_NAMELIB']};" \
+            f"export ASPHINX_VERSION={os.environ['ASPHINX_VERSION']};" \
+            f"export ASPHINX_LOGO={os.environ['ASPHINX_LOGO']};" \
+            f"export PATH={os.environ['PATH']};" \
+            f"python conf.py;" \
+            "make html;" \
+            f"rsync -avz --remove-source-files html/ {export_dir}/;" \
+            f"rm -r doctrees html *.rst"
+        os.system(f"/bin/sh -c '{command}'")
 
-    # def clean(self):
-    #     from gnutools.utils import listfiles
-    #     import os
-        # Remove some files
-        # Remove some directories
-        # [os.system("rm -r {}".format(dir)) for dir in ["doctrees", "html/_sources", "static", "templates"]]
-        # # Copy for azure
-        # os.makedirs("templates")
-        # os.system("cp -r html templates/docs")
-        # # Create the folders
-        # [os.system("mkdir {}".format(dir)) for dir in ["static", "static/docs"]]
-        # os.system("mv templates/docs/_static static/docs")
-        # os.system("mv templates/docs/objects.inv static/docs")
-        # os.system("mv templates/docs/searchindex.js static/docs")
-
-        # # Replace the path in all files
-        # def replace_in_file(file, pattern_in, pattern_out):
-        #     def replace_in_line(line, pattern_in, pattern_out):
-        #         return line.replace(pattern_in, pattern_out)
-        #
-        #     lines = [replace_in_line(line, pattern_in, pattern_out) for line in open(file, "r").readlines()]
-        #     open(file, "w").writelines(lines)
-
-        # [replace_in_file(file, "_static", "../static/docs/") for file in
-        #  listfiles(root="templates/docs", patterns=[".html"])]
-
-
-    @staticmethod
-    def get_packages(root, namelib):
+    def get_packages(self, root, namelib):
         """
         Get the list of packages availables in a root
 
@@ -66,12 +103,12 @@ class AutoSphinx:
         :return list:
         """
         root = os.path.realpath(root)
-        proot = parent(root) + "/"
-        py_files = [file.rsplit(proot)[1] for file in listfiles(root, patterns=[".py"], excludes=[".pyc", "__pycache__"]) if os.stat(file).st_size>0]
-        modules = [parent(file).replace("/", ".").split("{namelib}.".format(namelib=namelib)) for file in py_files]
+        files = listfiles(root, patterns=[".py"], excludes=[".pyc", "__pycache__"])
+        files = [f for f in files if os.stat(f).st_size>0]
+        py_files = [file.rsplit(self._parent_lib_root)[1] for file in files]
+        modules = [parent(file).replace("/", ".").split(f"{namelib}.") for file in py_files]
         modules = [m for m in modules if len(m)==2]
         return list(np.unique([m[1] for m in modules]))
-
 
     @staticmethod
     def patched_make_field(self, types, domain, items, **kw):
@@ -116,7 +153,36 @@ class AutoSphinx:
         fieldbody = nodes.field_body('', bodynode)
         return nodes.field('', fieldname, fieldbody)
 
-    def generate_rst(self, root, package, pkg):
+
+
+    def read_member_class(self, pyscript):
+        currentmodule = pyscript["currentmodule"]
+        for name_class, methods in pyscript["classes"].items():
+            members = ", ".join(list(methods.keys()))
+            self.__output += f".. currentmodule:: {currentmodule}\n\n"
+            self.__output += \
+                f"{name_class}\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n\n" \
+                f".. autoclass:: {name_class}\n" \
+                f"    :members: {members}\n" \
+                "    :special-members:\n\n"
+            # with open("all.txt", "a") as f:
+            #     f.write(self.__output + "\n")
+
+    def read_functions(self, pyscript):
+        currentfile = pyscript["currentfile"]
+        currentmodule = pyscript["currentmodule"]
+        if len(pyscript["functions"]) > 0:
+            self.__output += f".. currentmodule:: {currentmodule}\n\n"
+            self.__output += f"{currentfile}\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n\n"
+            block = "".join([f".. autofunction:: {function}\n" for function in pyscript["functions"].keys()])
+            self.__output += block
+
+        self.__output += "\n"
+
+    def get_current_module(self, f):
+        return parent(f).split(self._parent_lib_root)[1].replace("/", ".").split(".py")[0]
+
+    def generate_rst(self, pkg):
         """
         Scan a package and generate automatically a rst string to save as a rst file for documentation.
 
@@ -124,70 +190,23 @@ class AutoSphinx:
         :param package: package or module to generate the rst file
         :return string:
         """
-        root = os.path.realpath(root)
-        package = os.path.realpath(package)
-        proot = parent(root) + "/"
 
-        pyfiles = listfiles(package, patterns=[".py"], excludes=[".pyc", "__pycache__"])
-        modules = np.unique([file.replace(proot, "").replace("/", ".").replace(".py", "") for file in pyfiles])
-        module_name = package.replace(proot, "").replace("/", ".").replace(".py", "")
-        output = "{}\n==============================================================\n\n".format(module_name)
-        for module in modules:
-            splits = module.split("__init__")
-            if len(splits)==2:
-                path = "{}{}__init__.py".format(proot, splits[0].replace(".", "/"))
-            else:
-                path = "{}{}.py".format(proot, module.replace(".", "/"))
-            with open(path, "r") as f:
-                modules_dict = {}
-                modules_dict[name(path)] = []
-                members_class = {}
-                functions = []
-                lines = f.readlines()
-                last = ""
-                for line in lines:
-                    if ((line[:8] == "    def ") | (line[:6] == "class ")):
-                        if line.__contains__("class "):
-                            name_class = line.split("class ")[1].replace(":\n", "").split("(")[0].split("\n")[0]
-                            modules_dict[name_class] = module
-                            members_class[name_class] = []
-                            last = "class"
-                        else:
-                            name_member_class = line.split("    def ")[1].split("(")[0]
-                            if not name_member_class.__contains__("__"):
-                                if last == "class":
-                                    members_class[name_class].append(name_member_class)
-                                    last = "class"
-                    elif line[:4] == "def ":
-                        name_function = line.split("def ")[1].split("(")[0]
-                        modules_dict[name_function] = module
-                        functions.append(name_function)
-                        last = "function"
+        #Set the variables
+        package = f"{self._lib_root}/{pkg.replace('.', '/')}"
+        files = os.listdir(package)
+        pyfiles = [f"{package}/{f}" for f in files if f[-3:]==".py"]
+        pyscripts = [PyscriptParser(file) for file in pyfiles]
+        [s.update({"currentmodule": self.get_current_module(s._file), "currentfile":name(s._file)}) for s in pyscripts]
 
-                for name_class, class_value in members_class.items():
-                    if not name_class[0]=="_":
-                        members = ", ".join([value for value in class_value if not value[0]=="_"])
-                        output += ".. currentmodule:: {}\n\n".format(module_name)
-                        output += \
-                            "{name_class}\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n\n" \
-                            ".. autoclass:: {name_class}\n" \
-                            "    :members: {members}\n" \
-                            "    :special-members:\n\n".format(name_class=name_class, members=members)
 
-                if len(functions) > 0:
-                    if not ext(module)=="__init__":
-                        output += ".. currentmodule:: {}\n\n".format(module_name)
-                        output += "{}\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n\n".format(
-                            ext(module))
-                    else:
-                        output += ".. currentmodule:: {}\n\n".format(module_name)
-                    for function in functions:
-                        if not function[0]=="_":
-                            output += \
-                                ".. autofunction:: {}\n".format(function)
-                output += "\n"
-        print("{}\n============================================================================\n".format(output))
-        with open("{dir}/{namelib}.{pkg}.rst".format(dir=self._dir,
-                                                     namelib=self._name_lib,
-                                                     pkg=pkg), "w") as f:
-            f.write(output)
+        self.__output = f"{pyscripts[0]['currentmodule']}\n==============================================================\n\n"
+
+        # Process each module sequentially
+        [self.read_member_class(pyscript) for pyscript in pyscripts]
+        [self.read_functions(pyscript) for pyscript in pyscripts]
+
+        # Write the result
+        print(f"{self.__output}\n============================================================================\n")
+        with open(f"{self._current_dir}/{self._name_lib}.{pkg}.rst", "w") as f:
+            f.write(self.__output)
+

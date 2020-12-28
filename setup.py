@@ -43,7 +43,7 @@ def get_packages(root):
 
 setuptools.setup(
     name="autosphinx",
-    version="1.0a1",
+    version="1.0a2",
     author="Jean Maximilien Cadic",
     author_email="j.cadic@9dw-lab.com",
     description="Easy packaging for cython wheels.",

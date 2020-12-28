@@ -6,20 +6,25 @@ from autosphinx import AutoSphinx
 from gnutools.utils import parent
 import time
 CURRENT_DIR = parent(os.path.abspath(__file__))
+os.system("rm *.rst; rm -r doctrees; rm -r html")
+
 ASPHINX_NAMELIB = os.environ["ASPHINX_NAMELIB"]
 ASPHINX_VERSION = os.environ["ASPHINX_VERSION"]
 ASPHINX_LIBROOT = os.environ["ASPHINX_LIBROOT"]
+ASPHINX_LOGO    = os.environ["ASPHINX_LOGO"]
+
 
 if not os.environ["ASPHINX_LOGO"]=="":
     ASPHINX_LOGO = os.environ["ASPHINX_LOGO"].split("/")[-1]
-    replace_dir("{current_dir}/img".format(current_dir=CURRENT_DIR))
-    os.system("cp {img} {current_dir}/img".format(current_dir=CURRENT_DIR,
-                                                  img= os.environ["ASPHINX_LOGO"]))
+    replace_dir(f"{CURRENT_DIR}/img")
+    os.system(f"cp {os.environ['ASPHINX_LOGO']} {CURRENT_DIR}/img")
     # print(os.environ["ASPHINX_LOGO"],  "{current_dir}/img".format(current_dir=CURRENT_DIR))
     # time.sleep(10)
+# 
+sphinx = AutoSphinx(lib_root    = os.environ["ASPHINX_LIBROOT"],
+                    version     = os.environ["ASPHINX_VERSION"])
 
-sphinx = AutoSphinx(lib_root=os.environ["ASPHINX_LIBROOT"],
-                    version=os.environ["ASPHINX_VERSION"])
+
 TypedField.make_field = sphinx.patched_make_field
 
 extensions = [
@@ -96,12 +101,12 @@ html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
 # documentation.
 #
 html_theme_options = {
-    'collapse_navigation': False,
-    'display_version': True,
-    'logo_only': True,
+    'collapse_navigation'   : False,
+    'display_version'       : True,
+    'logo_only'             : True,
 }
 
-html_logo = "img/{ASPHINX_LOGO}".format(ASPHINX_LOGO=ASPHINX_LOGO)
+html_logo = f"img/{ASPHINX_LOGO}"
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
@@ -187,31 +192,25 @@ html_show_sourcelink = False
 
 # ------------------ Generate the rst files ----------------------------
 
-
-[os.system("rm {}".format(file)) for file in listfiles(root=CURRENT_DIR, patterns=[".rst"])]
-pkgs = [pkg.replace("{ASPHINX_NAMELIB}.".format(ASPHINX_NAMELIB=ASPHINX_NAMELIB), "") for pkg in sphinx.get_packages(root=ASPHINX_LIBROOT, namelib=ASPHINX_NAMELIB)]
+os.system("rm *.rst")
+pkgs = [
+    pkg.replace(f"{ASPHINX_NAMELIB}.", "")
+    for pkg in sphinx.get_packages(root=ASPHINX_LIBROOT,
+                                   namelib=ASPHINX_NAMELIB)
+]
 for pkg in [pkg for pkg in pkgs if not pkg==ASPHINX_NAMELIB]:
-    sphinx.generate_rst(root="{ASPHINX_LIBROOT}/".format(ASPHINX_LIBROOT=ASPHINX_LIBROOT),
-                        package="{ASPHINX_LIBROOT}/{pkg}".format(ASPHINX_LIBROOT=ASPHINX_LIBROOT,
-                                                         pkg=pkg.replace(".", "/")),
-                        pkg=pkg)
+    sphinx.generate_rst(pkg=pkg)
 
 
-replace_dir("{}/html".format(CURRENT_DIR))
-replace_dir("{}/doctrees".format(CURRENT_DIR))
+replace_dir(f"{CURRENT_DIR}/html")
+replace_dir(f"{CURRENT_DIR}/doctrees")
 
-prefixe =\
-"{ASPHINX_NAMELIB}\n===========\n.. toctree::\n\t:maxdepth: 2\n\t:caption: Package Reference\n\n".format(ASPHINX_NAMELIB=ASPHINX_NAMELIB)
+prefixe, suffixe, middle =\
+    f"{ASPHINX_NAMELIB}\n===========\n.. toctree::\n\t:maxdepth: 2\n\t:caption: Package Reference\n\n",\
+    f".. automodule:: {ASPHINX_NAMELIB}\n:members:\n",\
+    "\n".join([f"   {ASPHINX_NAMELIB}.{pkg}" for pkg in pkgs]) + "\n\n"
 
-suffixe = \
-".. automodule:: {ASPHINX_NAMELIB}\n\
-   :members:\n".format(ASPHINX_NAMELIB=ASPHINX_NAMELIB)
-
-
-middle =  "\n".join(["   {ASPHINX_NAMELIB}.{pkg}".format(ASPHINX_NAMELIB=ASPHINX_NAMELIB, pkg=pkg) for pkg in pkgs]) + "\n\n"
-
-output = "{}{}{}".format(prefixe, middle, suffixe)
 
 with open("index.rst", "w") as f:
-    f.write(output)
+    f.write(f"{prefixe}{middle}{suffixe}")
 
