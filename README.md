@@ -25,4 +25,4 @@ sphinx.run(export_dir="/home/jcadic/PythonDocs/project")
 
 ## Contributions
 
-Email me at j.cadic@9dw-lab.com for any questions.
+Email me at info@cadic.jp for any questions.
